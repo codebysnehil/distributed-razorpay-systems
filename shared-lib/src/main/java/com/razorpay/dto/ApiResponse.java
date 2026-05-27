@@ -2,8 +2,6 @@ package com.razorpay.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-// @JsonInclude — tells Jackson: skip fields that are null when serializing to JSON.
-// So a success response won't have an "error" key at all.
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ApiResponse<T> {
 
@@ -19,8 +17,6 @@ public class ApiResponse<T> {
         this.errorCode = errorCode;
     }
 
-    // Static factory methods — cleaner than constructors at the call site.
-    // In Go this would be: func OK[T any](data T) ApiResponse[T]
     public static <T> ApiResponse<T> ok(T data) {
         return new ApiResponse<>(true, data, null, null);
     }
