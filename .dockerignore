@@ -1,0 +1,10 @@
+# Exclude compiled output — we build inside Docker, not outside.
+# Without this, every `target/` directory gets sent into the build context,
+# making it slow and potentially picking up stale class files.
+**/target/
+
+# Git and IDE metadata have no business in a Docker image.
+.git/
+**/.idea/
+**/*.iml
+**/.DS_Store

@@ -1,0 +1,237 @@
+version: '3.8'
+
+# One command to spin up everything: docker-compose up -d
+# Each service gets its own DB — this is the microservices rule:
+# no two services share a database schema.
+
+services:
+
+  # ─── Message Broker ────────────────────────────────────────────────────────
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: razorpay-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: razorpay-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"       # used by your Spring Boot apps on the host
+      - "29092:29092"     # used by other Docker containers
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: razorpay-kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8090:8080"       # open http://localhost:8090 in browser
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+
+  # ─── Databases (one per service) ───────────────────────────────────────────
+
+  payment-db:
+    image: postgres:16-alpine
+    container_name: razorpay-payment-db
+    environment:
+      POSTGRES_DB: payment_db
+      POSTGRES_USER: payment_user
+      POSTGRES_PASSWORD: payment_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - payment-db-data:/var/lib/postgresql/data
+
+  merchant-db:
+    image: postgres:16-alpine
+    container_name: razorpay-merchant-db
+    environment:
+      POSTGRES_DB: merchant_db
+      POSTGRES_USER: merchant_user
+      POSTGRES_PASSWORD: merchant_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - merchant-db-data:/var/lib/postgresql/data
+
+  fraud-db:
+    image: postgres:16-alpine
+    container_name: razorpay-fraud-db
+    environment:
+      POSTGRES_DB: fraud_db
+      POSTGRES_USER: fraud_user
+      POSTGRES_PASSWORD: fraud_pass
+    ports:
+      - "5434:5432"
+    volumes:
+      - fraud-db-data:/var/lib/postgresql/data
+
+  ledger-db:
+    image: postgres:16-alpine
+    container_name: razorpay-ledger-db
+    environment:
+      POSTGRES_DB: ledger_db
+      POSTGRES_USER: ledger_user
+      POSTGRES_PASSWORD: ledger_pass
+    ports:
+      - "5435:5432"
+    volumes:
+      - ledger-db-data:/var/lib/postgresql/data
+
+  notification-db:
+    image: postgres:16-alpine
+    container_name: razorpay-notification-db
+    environment:
+      POSTGRES_DB: notification_db
+      POSTGRES_USER: notification_user
+      POSTGRES_PASSWORD: notification_pass
+    ports:
+      - "5436:5432"
+    volumes:
+      - notification-db-data:/var/lib/postgresql/data
+
+  refund-db:
+    image: postgres:16-alpine
+    container_name: razorpay-refund-db
+    environment:
+      POSTGRES_DB: refund_db
+      POSTGRES_USER: refund_user
+      POSTGRES_PASSWORD: refund_pass
+    ports:
+      - "5437:5432"
+    volumes:
+      - refund-db-data:/var/lib/postgresql/data
+
+  settlement-db:
+    image: postgres:16-alpine
+    container_name: razorpay-settlement-db
+    environment:
+      POSTGRES_DB: settlement_db
+      POSTGRES_USER: settlement_user
+      POSTGRES_PASSWORD: settlement_pass
+    ports:
+      - "5438:5432"
+    volumes:
+      - settlement-db-data:/var/lib/postgresql/data
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: payment-service/Dockerfile
+    container_name: razorpay-payment-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      - payment-db
+      - kafka
+    restart: on-failure
+
+  fraud-service:
+    build:
+      context: .
+      dockerfile: fraud-service/Dockerfile
+    container_name: razorpay-fraud-service
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      - fraud-db
+      - kafka
+    restart: on-failure
+
+  ledger-service:
+    build:
+      context: .
+      dockerfile: ledger-service/Dockerfile
+    container_name: razorpay-ledger-service
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      - ledger-db
+      - kafka
+    restart: on-failure
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
+    container_name: razorpay-notification-service
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      - notification-db
+      - kafka
+    restart: on-failure
+
+  merchant-service:
+    build:
+      context: .
+      dockerfile: merchant-service/Dockerfile
+    container_name: razorpay-merchant-service
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      - merchant-db
+    restart: on-failure
+
+  refund-service:
+    build:
+      context: .
+      dockerfile: refund-service/Dockerfile
+    container_name: razorpay-refund-service
+    ports:
+      - "8086:8086"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      - refund-db
+      - kafka
+    restart: on-failure
+
+  settlement-service:
+    build:
+      context: .
+      dockerfile: settlement-service/Dockerfile
+    container_name: razorpay-settlement-service
+    ports:
+      - "8087:8087"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      - settlement-db
+      - kafka
+    restart: on-failure
+
+volumes:
+  payment-db-data:
+  merchant-db-data:
+  fraud-db-data:
+  ledger-db-data:
+  notification-db-data:
+  refund-db-data:
+  settlement-db-data:
